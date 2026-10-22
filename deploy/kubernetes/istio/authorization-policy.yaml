@@ -1,0 +1,30 @@
+# L7 zero-trust authorization. One AuthorizationPolicy with no rules = deny-all for the
+# namespace; the second allows only the ingress gateway's identity to reach the workload
+# on the API paths. Everything else (lateral, direct pod-to-pod) is denied at the sidecar.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all
+  namespace: tenant-a
+spec: {} # empty spec => deny all requests in this namespace
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-gateway-to-api
+  namespace: tenant-a
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: security-api }
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              [
+                "cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account",
+              ]
+      to:
+        - operation:
+            methods: ["GET", "POST", "DELETE"]
+            paths: ["/token", "/orders/*", "/secure/*", "/healthz"]

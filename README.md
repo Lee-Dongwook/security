@@ -17,6 +17,35 @@
 - API 접근 제어 검증 및 수정
 - 보안 회귀 테스트 작성
 
+### 고급 트랙: 대규모 인프라 · 오펜시브 · DFIR · 공급망 (Phase 1–4)
+
+기본 멀티테넌트 실습 위에, 프로덕션 규모의 보안 통제를 4단계로 확장한다. 각 단계는
+실행 가능한 산출물과 회귀 테스트를 남긴다 (`python -m pytest -q` → 41 passed).
+
+| Phase | 주제                                            | 산출물                                                | 실행                                                 |
+| ----- | ----------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------- |
+| 1     | 제로 트러스트 K8s (네트워크 격리 · mTLS · eBPF) | `deploy/kubernetes/**`, `deploy/kubernetes/README.md` | `kubectl apply -k deploy/kubernetes/base`            |
+| 2     | 오펜시브: API 퍼징 인프라                       | `fuzz/fuzz_api.py`                                    | `python fuzz/fuzz_api.py 400`                        |
+| 3     | DFIR: 감사 로그 위협 헌팅 · 측면 이동 추적      | `dfir/threat_hunt.py`, `dfir/sigma_rules.yml`         | `python dfir/threat_hunt.py dfir/sample_audit.jsonl` |
+| 4     | 공급망: SBOM · Cosign 서명 · SLSA 프로베넌스    | `supplychain/`, `.github/workflows/supply-chain.yml`  | `python supplychain/gen_sbom.py > sbom.json`         |
+
+**Phase 1 — 제로 트러스트:** L3/L4 기본 차단(`default-deny` NetworkPolicy) + L7 신원
+기반 인가(Istio STRICT mTLS, `deny-all` AuthorizationPolicy) + eBPF 런타임 통제(Tetragon이
+워크로드 내 예기치 않은 셸 실행을 커널에서 SIGKILL). 워크로드는 non-root · read-only
+rootfs · 모든 capability drop · SA 토큰 비활성.
+
+**Phase 2 — 퍼징:** OpenAPI 스키마 기반 변이 퍼저. 세 가지 오라클 — 5xx 크래시,
+교차 테넌트 인가 우회(IDOR/BOLA), SQLi 차분(`/vulnerable` vs `/secure`). 의존성 없이
+TestClient로 자가 엔드포인트만 테스트한다. 인가 우회 불변식은 `tests/test_fuzz_invariants.py`로 고정.
+
+**Phase 3 — DFIR:** `app/audit.py`의 JSONL 감사 스트림을 파싱해 단일 출발지의 다중 테넌트
+접근(측면 이동), SSRF, 인가 열거 버스트, 신원 피벗을 상관 분석하고 공격자 타임라인을
+재구성한다. SIEM 적재용 Sigma 룰 포함.
+
+**Phase 4 — 공급망:** `requirements.txt` → CycloneDX 1.5 SBOM(stdlib만 사용) → 이미지
+빌드 → Cosign 키리스 서명 → SBOM/SLSA 프로베넌스 attestation. 소비자측 검증 게이트는
+`supplychain/verify.sh`.
+
 ### 실행 방법
 
 Python 가상환경을 활성화한 후 의존성을 설치합니다.
@@ -55,7 +84,8 @@ curl -i http://127.0.0.1:8000/orders/202 \
 - [x] IDOR 취약점 재현을 위한 API 구현
 - [x] 테넌트 단위 접근 제어 적용
 - [x] 수정된 로직에 대한 회귀 테스트 작성
-- [ ] 취약점 분석 및 개선 보고서 작성
+- [x] 취약점 분석 및 개선 보고서 작성
+- [x] 고급 트랙 Phase 1–4 구현 (인프라 · 퍼징 · DFIR · 공급망)
 
 토큰과 데이터는 테스트 목적으로만 사용하며, 실제 서비스나 외부 시스템을 대상으로 하지 않습니다.
 

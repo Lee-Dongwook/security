@@ -22,6 +22,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AppSec IDOR Lab", lifespan=lifespan)
 
+@app.get("/healthz")
+def healthz():
+    # Liveness/readiness: process is up and event loop responsive.
+    return {"status": "ok"}
+
 @app.post("/token")
 def issue_token(user_id: str, tenant_id: str, role: str = "MANAGER"):
     token = create_access_token({"sub": user_id, "tenant_id": tenant_id, "role": role})

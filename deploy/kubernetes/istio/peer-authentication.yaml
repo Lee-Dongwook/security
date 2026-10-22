@@ -1,0 +1,10 @@
+# Service-mesh mTLS: force STRICT mutual TLS mesh-wide. Plaintext (non-mTLS) traffic
+# between sidecar-injected pods is rejected. Identity = SPIFFE SVID per ServiceAccount.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default-strict-mtls
+  namespace: istio-system # root namespace => applies mesh-wide
+spec:
+  mtls:
+    mode: STRICT

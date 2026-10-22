@@ -1,0 +1,59 @@
+# Zero-trust L3/L4: default-deny everything, then open only what the workload needs.
+# Applied in each tenant namespace. Combined with Istio AuthorizationPolicy (L7) this
+# gives defense in depth — a pod that bypasses the mesh still can't talk off-namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {} # all pods in the namespace
+  policyTypes: [Ingress, Egress]
+  # no ingress/egress rules => deny all
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-from-mesh-gateway
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: security-api }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: istio-system }
+      ports:
+        - { protocol: TCP, port: 8000 }
+---
+# Tenant isolation: pods may talk to same-app pods in their OWN namespace only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: security-api }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: security-api }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: security-api }

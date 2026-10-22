@@ -1,0 +1,74 @@
+# Hardened per-tenant workload. Deployed once per tenant namespace (tenant-a / tenant-b)
+# via kustomize overlays. securityContext satisfies the `restricted` Pod Security Standard.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: security-api
+  labels:
+    app.kubernetes.io/name: security-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: security-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: security-api
+    spec:
+      serviceAccountName: appsec-workload-sa
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: security-api
+          image: security-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: security-api-config
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: data
+          emptyDir: {} # ponytail: emptyDir for the lab DB; swap to a PVC when state must survive restarts
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: security-api
+  labels:
+    app.kubernetes.io/name: security-api
+spec:
+  selector:
+    app.kubernetes.io/name: security-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

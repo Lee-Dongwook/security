@@ -1,0 +1,37 @@
+# Sigma detection rules for the app/audit.py JSONL stream. Ship to a SIEM (Splunk, Elastic,
+# Sentinel) via sigmac/pySigma. Logsource is the structured audit channel.
+---
+title: Lateral Movement Across Tenants From Single Source
+id: 7f3c1a90-0001-4e2b-9a01-tenanthop
+status: experimental
+logsource: { product: appsec_api, service: security_audit }
+detection:
+  selection:
+    event_type:
+      - IDOR_ATTEMPT
+      - ORDER_READ
+  timeframe: 5m
+  condition: selection | count(tenant_id) by client_ip > 1
+level: high
+tags: [attack.lateral_movement, attack.t1078]
+---
+title: Cloud Metadata SSRF Attempt
+id: 7f3c1a90-0002-4e2b-9a01-ssrfmeta
+status: stable
+logsource: { product: appsec_api, service: security_audit }
+detection:
+  selection: { event_type: SSRF_ATTEMPT_DETECTED }
+  condition: selection
+level: high
+tags: [attack.discovery, attack.t1552.005]
+---
+title: Authorization Enumeration / Brute Force
+id: 7f3c1a90-0003-4e2b-9a01-enumerate
+status: experimental
+logsource: { product: appsec_api, service: security_audit }
+detection:
+  selection: { event_type: AUTHZ_DENIED }
+  timeframe: 1m
+  condition: selection | count() by client_ip >= 10
+level: high
+tags: [attack.credential_access, attack.t1110]
