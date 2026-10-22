@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, status
+from pydantic import HttpUrl, BaseModel
 from app.auth import verify_jwt_token, create_access_token
 from app.models import OrderCreate
 from app.database import (
@@ -10,6 +11,8 @@ from app.database import (
     create_order_safe_concurrency,
     delete_order_for_tenant
 )
+from app.utils import validate_external_url
+import httpx
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -100,3 +103,15 @@ def search_orders_secure(keyword: str, user: dict = Depends(verify_jwt_token)):
     rows = cursor.fetchall()
     conn.close()
     return {"results": rows}
+
+class WebhookRequest(PydanticModel := object):
+    pass
+
+class WebhookPayload(BaseModel):
+    target_url: str
+
+@app.post("/webhook/trigger")
+def trigger_webhook(payload: WebhookPayload, user: dict = Depends(verify_jwt_token)):
+    validate_external_url(payload.target_url)
+
+    return {"status": "success", "dispatched_to": payload.target_url}
