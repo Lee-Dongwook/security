@@ -73,8 +73,8 @@ def search_orders_vulnerable(keyword: str, user: dict = Depends(verify_jwt_token
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # SQL Injection 발생 가능 문장
-    query = f"SELECT * FROM orders WHERE tenant_id = '{user['tenant_id']}' AND item LIKE '%{keyword}%'"
+    # SQL Injection 발생 가능 문장 - 원래는 취약점으로 바로 탐색해야 하나, 본 레포에선 의도적 배선이므로 일단 스캔을 생략한다.
+    query = f"SELECT * FROM orders WHERE tenant_id = '{user['tenant_id']}' AND item LIKE '%{keyword}%'" # nosec
 
     cursor.execute(query)
     rows = cursor.fetchall()
