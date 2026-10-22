@@ -1,13 +1,21 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends, status
 from app.auth import verify_jwt_token, create_access_token
 from app.models import OrderCreate
 from app.database import (
+    init_db,
+    get_db_connection,
     get_order_for_tenant,
     create_order_for_tenant,
     delete_order_for_tenant
 )
 
-app = FastAPI(title="AppSec IDOR Lab")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+app = FastAPI(title="AppSec IDOR Lab", lifespan=lifespan)
 
 @app.post("/token")
 def issue_token(user_id: str, tenant_id: str, role: str = "MANAGER"):
@@ -59,3 +67,28 @@ def delete_order(
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     return {"status": "success", "deleted_order_id": order_id}
+
+@app.get("/vulnerable/search")
+def search_orders_vulnerable(keyword: str, user: dict = Depends(verify_jwt_token)):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # SQL Injection 발생 가능 문장
+    query = f"SELECT * FROM orders WHERE tenant_id = '{user['tenant_id']}' AND item LIKE '%{keyword}%'"
+
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
+    return {"results": rows}
+
+@app.get("/secure/search")
+def search_orders_secure(keyword: str, user: dict = Depends(verify_jwt_token)):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # 안전: 파라미터 바인딩 사용
+    query = "SELECT order_id, tenant_id, item, amount FROM orders WHERE tenant_id = ? AND item LIKE ?"
+    cursor.execute(query, (user['tenant_id'], f"%{keyword}%"))
+    rows = cursor.fetchall()
+    conn.close()
+    return {"results": rows}
