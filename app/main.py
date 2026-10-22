@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Header, HTTPException
+from app.services import get_order_for_tenant
 
 app = FastAPI(title="AppSec IDOR Lab")
 
@@ -12,21 +13,6 @@ USERS = {
         "user_id": "bob",
         "tenant_id": "tenant-b",
         "role": "MANAGER",
-    },
-}
-
-ORDERS = {
-    101: {
-        "id": 101,
-        "tenant_id": "tenant-a",
-        "product": "Laptop",
-        "quantity": 2,
-    },
-    202: {
-        "id": 202,
-        "tenant_id": "tenant-b",
-        "product": "Monitor",
-        "quantity": 5,
     },
 }
 
@@ -49,13 +35,12 @@ def get_order(
 ):
     user = get_current_user(authorization)
 
-    order = ORDERS.get(order_id)
+    order = get_order_for_tenant(
+        order_id=order_id,
+        tenant_id=user["tenant_id"],
+    )
 
     if order is None:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    # 인가 검증 : 사용자의 테넌트와 발주의 테넌트가 일치해야함.
-    if order["tenant_id"] != user["tenant_id"]:
         raise HTTPException(status_code=404, detail="Order not found")
 
     return {
