@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Header, HTTPException, Depends, status
-from app.models import OrderCreate, OrderUpdate
+from fastapi import FastAPI, HTTPException, Depends, status
+from app.auth import verify_jwt_token, create_access_token
+from app.models import OrderCreate
 from app.database import (
     get_order_for_tenant,
     create_order_for_tenant,
@@ -8,35 +9,15 @@ from app.database import (
 
 app = FastAPI(title="AppSec IDOR Lab")
 
-USERS = {
-    "alice-token": {
-        "user_id": "alice",
-        "tenant_id": "tenant-a",
-        "role": "MANAGER",
-    },
-    "bob-token": {
-        "user_id": "bob",
-        "tenant_id": "tenant-b",
-        "role": "MANAGER",
-    },
-}
-
-def get_current_user(authorization: str | None = Header(default=None)):
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    
-    token = authorization.removeprefix("Bearer ")
-    user = USERS.get(token)
-
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-
-    return user
+@app.post("/token")
+def issue_token(user_id: str, tenant_id: str, role: str = "MANAGER"):
+    token = create_access_token({"sub": user_id, "tenant_id": tenant_id, "role": role})
+    return {"access_token": token, "token_type": "bearer"}
 
 @app.get("/orders/{order_id}")
 def get_order(
     order_id: int,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(verify_jwt_token)
 ):
     order = get_order_for_tenant(
         order_id=order_id,
@@ -54,7 +35,7 @@ def get_order(
 @app.post("/orders", status_code=status.HTTP_201_CREATED)
 def create_order(
     payload: OrderCreate,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(verify_jwt_token)
 ):
     order = create_order_for_tenant(
         tenant_id=user["tenant_id"],
@@ -69,7 +50,7 @@ def create_order(
 @app.delete("/orders/{order_id}")
 def delete_order(
     order_id: int,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(verify_jwt_token)
 ):
     success = delete_order_for_tenant(
         order_id=order_id,
