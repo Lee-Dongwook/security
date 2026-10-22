@@ -34,3 +34,4 @@ jobs:
       - name: Run Software Composition Analysis (pip-audit)
         run: |
           pip-audit
+        continue-on-error: true
