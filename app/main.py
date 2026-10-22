@@ -13,6 +13,7 @@ from app.database import (
 )
 from app.utils import validate_external_url
 import httpx
+from app.middleware import rate_limiter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -115,3 +116,18 @@ def trigger_webhook(payload: WebhookPayload, user: dict = Depends(verify_jwt_tok
     validate_external_url(payload.target_url)
 
     return {"status": "success", "dispatched_to": payload.target_url}
+
+@app.post("/orders/secure", dependencies=[Depends(rate_limiter)])
+def create_secure_order(payload: OrderCreate, user: dict = Depends(verify_jwt_token)):
+    order = create_order_for_tenant(
+        tenant_id=user["tenant_id"],
+        item=payload.item,
+        amount=payload.amount
+    )
+
+    return {
+        "status": "created", 
+        "tenant": user["tenant_id"], 
+        "requested_by": user["user_id"],
+        "order": order
+    }
