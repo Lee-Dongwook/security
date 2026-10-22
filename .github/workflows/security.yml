@@ -35,3 +35,15 @@ jobs:
         run: |
           pip-audit
         continue-on-error: true
+
+      - name: Build Docker Image
+        run: docker build -t security-lab:latest .
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "security-lab:latest"
+          format: "table"
+          exit-code: "0" # 실무에서는 1로 설정하여 차단하나 - 본 레포에서는 경고모드로 둠
+          severity: "CRITICAL,HIGH"
+        continue-on-error: true
