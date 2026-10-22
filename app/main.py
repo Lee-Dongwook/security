@@ -54,6 +54,10 @@ def get_order(
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    # 인가 검증 : 사용자의 테넌트와 발주의 테넌트가 일치해야함.
+    if order["tenant_id"] != user["tenant_id"]:
+        raise HTTPException(status_code=404, detail="Order not found")
+
     return {
         "requested_by": user["user_id"],
         "order": order,
