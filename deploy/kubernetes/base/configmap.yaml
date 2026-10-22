@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: security-api-config
+  labels:
+    app.kubernetes.io/name: security-api
+data:
+  DB_PATH: "/data/app.db"
+  ENVIRONMENT: "production"
+  PYTHONUNBUFFERED: "1"
