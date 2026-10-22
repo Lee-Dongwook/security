@@ -7,6 +7,7 @@ from app.database import (
     get_db_connection,
     get_order_for_tenant,
     create_order_for_tenant,
+    create_order_safe_concurrency,
     delete_order_for_tenant
 )
 
@@ -54,6 +55,13 @@ def create_order(
         "requested_by": user["user_id"],
         "order": order
     }
+
+@app.post("/orders/limited", status_code=201)
+def create_limited_order(payload: OrderCreate, user: dict = Depends(verify_jwt_token)):
+    order, error = create_order_safe_concurrency(user["tenant_id"], payload.item, payload.amount, max_limit=1)
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    return {"requested_by": user["user_id"], "order": order}
 
 @app.delete("/orders/{order_id}")
 def delete_order(

@@ -61,6 +61,33 @@ def create_order_for_tenant(tenant_id: str, item: str, amount: int):
         "amount": amount
     }
 
+def create_order_safe_concurrency(tenant_id: str, item: str, amount: int, max_limit: int = 1):
+    conn = get_db_connection()
+    # BEGIN EXCLUSIVE -> 트랜잭션 시작 시점에서 write Lock
+    conn.execute("BEGIN EXCLUSIVE;")
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM orders WHERE tenant_id = ?", (tenant_id,))
+        current_count = cursor.fetchone()[0]
+
+        if current_count >= max_limit:
+            conn.rollback()
+            return None, "Limit exceeded"
+        
+        cursor.execute(
+            "INSERT INTO orders (tenant_id, item, amount) VALUES (?, ?, ?)",
+            (tenant_id, item, amount)
+        )
+        conn.commit()
+        new_id = cursor.lastrowid
+        return {"order_id": new_id, "tenant_id": tenant_id, "item": item, "amount": amount}, None
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
 def delete_order_for_tenant(order_id: int, tenant_id: str):
     conn = get_db_connection()
     cursor = conn.cursor()
